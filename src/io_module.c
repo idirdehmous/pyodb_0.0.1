@@ -117,9 +117,9 @@ static PyObject *odbClose_method(PyObject *self, PyObject *args) {
   }    
   else {
     rc = -1;
+    return PyLong_FromLong(-1) ;
+    Py_Finalize() ;
   }
-     return PyLong_FromLong(0) ;
-     Py_Finalize() ;
 }
 
 
