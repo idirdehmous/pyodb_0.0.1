@@ -1,5 +1,6 @@
 #define PY_SSIZE_T_CLEAN
 #include  <stdio.h> 	
+#include  <sys/stat.h>
 #include  "Python.h"
 
 
@@ -13,7 +14,8 @@ extern PyObject* pyodb_OperationalError;
 extern PyObject* pyodb_ProgrammingError;
 extern PyObject* pyidb_IntegrityError;
 extern PyObject* pyodb_DataError;
-extern PyObject* pyodb_NotSupportedError;*/
+extern PyObject* pyodb_NotSupportedError;
+*/
 
 
 #include <unistd.h>
@@ -35,7 +37,7 @@ char *concat(const char *s1, const char *s2)
 
 
 
-//RESET LIST ITEM MEMERO ADRESSES 
+//RESET LIST ITEM MEMORY ADRESSES 
 static PyObject*  list_reset(PyObject* *list_col , Py_ssize_t ncols )
 {
     *list_col = PyList_New (ncols) ;
@@ -43,11 +45,15 @@ static PyObject*  list_reset(PyObject* *list_col , Py_ssize_t ncols )
      return *list_col ;
 }
 
-
-/*static PyObject* createDca( char *db  )   
+int  check_path( const char* path )
 {
-char  *database  ;  
-return 0 ; 
+  
+    struct stat sb;
 
-}*/
+    if (stat( path , &sb) == 0 && S_ISDIR(sb.st_mode)) {
+        return 0 ;
+    } else {
+        return -1 ;
+    }
+}
 
