@@ -22,7 +22,7 @@ odb_env="/home/cvah/pkg"
 
 # COMPILER FLAGS 
 compiler_opts = sysconfig.get_config_var('CFLAGS').split()
-compiler_opts += [ "-Wall", "-Wextra", "-Wno-sign-compare" ]
+compiler_opts += [ "-Wall", "-Wextra", "-Wno-sign-compare" ,"-Wno-maybe-uninitialized"]
 #                   "-Wno-unused-variable", "-Wno-unused-function",
 #                   "-Wno-unused-parameter","-Wno-return-type","-Wno-missing-field-initializers",
 #                   "-Wno-unused-but-set-variable","-Wno-int-conversion"]
@@ -59,14 +59,12 @@ m3=Extension( name3 ,      ["src/dump_module.c"],
                      language='c') 
 
 
-
-
 # CREATE THE EXTENSION !
 setup( name="pyodb",
        version="0.0.1",
        description="Python interface for C odb ",
-       author="blala",
-       author_email="your_email@gmail.com",
+       author="Idir Dehmous",
+       author_email="idehmous@meteo.be",
        ext_modules=[  m1, m2 , m3   ], 
        package_data={'pyodb': ['libodb.so']},
        cmdclass={"build_ext": NoSuffixBuilder},
