@@ -15,15 +15,27 @@ extern double util_walltime_();
 // C wrapper 
 static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
     Py_Initialize() ;
-    char *database = NULL;
-    char *sql_query= NULL;
+    char *database  = NULL;
+    char *sql_query = NULL;
     
+    int ihd   ;
+    int llv   ;
+    int lstat ;
+    PyObject *get_header ; 
+    PyObject *lverb      ;  
+    PyObject *stat       ; 
+
     PyObject *st ,*dt , *ttm , *int4, *fl ; 
 
-    if(!PyArg_ParseTuple(args, "ss", &database, &sql_query )) {
+    
+    if(!PyArg_ParseTuple(args, "ssOOO", &database, &sql_query ,&get_header ,&lverb ,&stat )) {
         return NULL;
     }
 
+    ihd   = PyObject_IsTrue(get_header);
+    llv   = PyObject_IsTrue(lverb );
+    lstat = PyObject_IsTrue(stat  );
+    //printf ( "%d\n",  lstat   ) ; 
   char *poolmask  = NULL;
   char *varvalue  = NULL;
   char *queryfile = NULL;
@@ -36,12 +48,13 @@ static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
   //double wlast;
   extern int optind;
  
-  Bool get_header=true ; 
+//  Bool get_header=true ; 
+
 
   if (maxlines == 0) return PyLong_FromLong(rc);
 
-  printf ("Opening the odb  :  %s \n",   database  ) ;
-  printf ("Executing query  :  %s \n",   sql_query ) ;
+  //printf ("Opening the odb  :  %s \n",   database  ) ;
+  printf ("Executing query           :  %s \n",   sql_query ) ;
 
 
   //wlast = util_walltime_(); to use later for time ellapsed !
@@ -51,11 +64,12 @@ static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
   
   if (h && maxcols > 0) {
 
+
     PyObject*  py_hdr    = PyList_New(maxcols) ;  
     PyObject*  py_row    = PyList_New(0) ;
     Py_ssize_t irow      = -1  ;
 
-    printf( "Number of feteched columns : %d \n" , maxcols  )  ; 
+    printf( "Number of fetched columns : %d \n" , maxcols  )  ; 
 
     int new_dataset = 0   ;
     colinfo_t *ci   = NULL;
@@ -70,54 +84,66 @@ static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
       packed ? odbdump_nextrow_packed : odbdump_nextrow;
     int dlen = packed ? maxcols * sizeof(*d) : maxcols;
 
+
+    char nul[5] = "NULL";
+    char *pnul  = nul ;
+
     ALLOCX(d, maxcols);
     
     while ( (nd = nextrow(h, d, dlen, &new_dataset)) > 0) {
       Py_ssize_t i ;
       PyObject*  py_col    = PyList_New(maxcols) ;
-      if (new_dataset) {
+      if (new_dataset)       {
 	/* New query ? */
 	//CLEAN STRUCTURES 
 	ci = odbdump_destroy_colinfo(ci, nci);
 	ci = odbdump_create_colinfo(h, &nci);
-
-       if (get_header ) {	 
-             for (i=0; i<nd; i++) {
+       if (  ihd ==  1 )      {	 
+          PyObject *hdr  ; 
+             for (i=0; i<nd; i++)   {
               colinfo_t *pci = &ci[i];
-	  PyObject *hdr ; 
 
-	  if ( pci->nickname !=NULL  ) {
+          
+	  if ( pci->nickname != NULL   )     {
 	  hdr = PyUnicode_FromFormat (pci->nickname)  ; 
-	  if (hdr == NULL ) {
-                    return NULL   ;
-	  }
-
 	  PyList_SetItem( py_hdr , i , hdr  ) ;
-	  }else {
+          } 
+	  else { 
+	  st=PyUnicode_FromString(  pnul )  ;
+	  PyList_SetItem( py_hdr , i , st ) ;
+	  //Py_INCREF(hdr) ; 
+	  } 
+
+	  if (pci->name != NULL ) {
 	  hdr = PyUnicode_FromFormat (pci->name)  ;
-	  if (hdr  == NULL ) {
-                    return NULL   ;
-	  }
-
 	  PyList_SetItem( py_hdr , i , hdr  ) ;
 
-	  }
-	  Py_DECREF (hdr ) ;
-	 }
-       }
+	   } else {
+	  st=PyUnicode_FromString(  pnul )  ;
+          PyList_SetItem( py_hdr , i , st ) ;
+         // Py_DECREF(hdr) ;  
+	         }
+
+	  }  //  for i++ 
+	  Py_DECREF(hdr) ;   //
+	 }  // header 
        new_dataset = 0;
        nrows = 0;
       
       }  /* if  NEW DATASET */
 
+
       if(raw){
 	Py_ssize_t  icol= -1 ; 
-
+	char nul[5] = "NULL";
+	char *pnul  = nul ; 
 	for (Py_ssize_t i=0; i<nd; i++) {
             colinfo_t *pci = &ci[i];
 	  if (print_mdi && pci->dtnum != DATATYPE_STRING && ABS(d[i]) == mdi) {
-             //printf ( "%s\n returned NULL " ,  "NULL" ) ;
-             return "NULL"   ;
+	      icol++ ; 
+	      st=PyUnicode_FromString(  pnul ) ; 
+              PyList_SetItem ( py_col   , icol , st  ) ;
+	      Py_XINCREF (st ) ;  // Could be a null pointer , use    XINCREF!
 	  }
 	  else {
 
@@ -138,108 +164,136 @@ static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
                   char c = u.s[js];
 
                *scc++ = isprint(c) ? c : '8' ; /* unprintables as blanks  REPLACE BY 8 arbitrary choice , ( juste for the col source@hdr)    */
-                } /* for (js=0; js<sizeof(double); js++) */
+                } 
                 *scc = '\0';
 		icol ++  ;  
 		if (PyLong_Check( PyLong_FromLong(icol) ) ){
-			;
-		}; 
+         		st=PyUnicode_FromFormat (cc )  ;
+		     if (st  ){
+			if ( PyUnicode_Check(st) ) {
+		            PyList_SetItem ( py_col , icol , st  ) ;
+			} else {
+                   		st=PyUnicode_FromString(  pnul ) ;
+			    PyList_SetItem ( py_col , icol , st ) ;
+                            //Py_DECREF(py_col);
+                            Py_DECREF(st);
+			}
 
-	        st=PyUnicode_FromFormat (cc )  ; 
-		if ( PyUnicode_Check(st) ) {
-			;
+			}
+		} else {  
+		     PyErr_SetString ( PyExc_IndexError, "The column index may not be a 4 bytes integer"  )       ; 
 		}
-                if (st == NULL ) {  
-		    return NULL   ;
-		} 
-		PyList_SetItem ( py_col , icol , st  ) ;
-		if (py_col == NULL ) {
-                  Py_DECREF(py_col);
-                  Py_DECREF(st);
-                  return NULL;
-                  }
+
 
 	      }
 	      break;
          case DATATYPE_YYYYMMDD:
                icol++  ;
                if (PyLong_Check( PyLong_FromLong(icol) ) ){
-                        ;
-               };
-	       dt= PyLong_FromLong((int)d[i])     ; 
-               if (dt == NULL ) {
-                 return NULL  ;
-                 }
-	       PyList_SetItem(py_col, icol , dt  ) ;
-              if (py_col == NULL ) {
-                  // ERROR!
-                  Py_DECREF(py_col);
-		  Py_DECREF(dt);
-                  return NULL;
-                  }
+                    dt= PyLong_FromLong((int)d[i])     ;
+		    if (dt)  {
+                                PyList_SetItem(py_col, icol , dt  ) ;
+		    }
+		    else if (!dt){ 
+	            st=PyUnicode_FromString(  pnul ) ;
+		    PyList_SetItem ( py_col , icol , st ) ;
+	           // Py_DECREF(py_col);   Don't need to DECREF the reference of py_col , it will hold the 'NULL' value
+                    Py_DECREF(st);
+                     } 
+               
+                    else {
+                    PyErr_SetString ( PyExc_IndexError, "The column index may not be a 4 bytes integer"  )       ;
+	       
+	       }
+	       }
 	       break;
 
 	  case DATATYPE_HHMMSS:
-	       icol++  ;
-	       if (PyLong_Check( PyLong_FromLong(icol) ) ){
-                        ;
-               };
-	       ttm= PyLong_FromLong( (int) d[i] )     ;
-               if ( ttm  == NULL ) {
-                   return NULL  ;
-                }
-	       PyList_SetItem(py_col, icol , ttm )    ;
-	       if (py_col == NULL ) {
-                  Py_DECREF(py_col);
-                  Py_DECREF(ttm);
-                  return NULL;
-                  }
+                icol++  ;
+               if (PyLong_Check( PyLong_FromLong(icol) ) ){
+                    ttm= PyLong_FromLong((int)d[i])     ;
+                    if (ttm)  {
+                                PyList_SetItem(py_col, icol , ttm  ) ;
+                    }
+                    else if (!ttm){
+                    st=PyUnicode_FromString(  pnul ) ;
+                    PyList_SetItem ( py_col , icol , st ) ;
+                   // Py_DECREF(py_col);   Don't need to DECREF the reference of py_col , it will hold the 'NULL' value
+                    Py_DECREF(st);
+                     }
+
+                    else {
+                    PyErr_SetString ( PyExc_IndexError, "The column index may not be a 4 bytes integer"  )       ;
+
+               }
+               }
 
                break; 
           case DATATYPE_INT4:
-              icol++  ;
-              int4 = PyLong_FromLong(d[i] );
-	      /*if (int4 == NULL ) {  
-	         return NULL  ;
-	      }*/
-              PyList_SetItem(py_col , icol , int4 )  ;
-              /*if (py_col == NULL ) {
-                  Py_DECREF(py_col);
-                  Py_DECREF(int4);
-                  return NULL;
-                  }*/
-              break;
+               icol++  ;
+               if (PyLong_Check( PyLong_FromLong(icol) ) ){
+                    int4= PyLong_FromLong((int)d[i])     ;
+                    if (int4)  {
+                       PyList_SetItem(py_col, icol , int4  ) ;
+                    }
+                    else if (!int4){
+                    st=PyUnicode_FromString(  pnul ) ;
+                    PyList_SetItem ( py_col , icol , st ) ;
+                   // Py_DECREF(py_col);   Don't need to DECREF the reference of py_col , it will hold the 'NULL' value
+                    Py_DECREF(st);
+                     }
+
+                    else {
+                    PyErr_SetString ( PyExc_IndexError, "The column index may not be a 4 bytes integer"  )       ;
+
+               }
+               }
+               break;
+
 	  default:
-              icol++ ;
-              fl = PyFloat_FromDouble( d[i] )  ;
-              /*if (fl == NULL ) {
-                 return NULL  ;
-              }*/
-              PyList_SetItem(py_col , icol ,fl ) ;
-              /*if (py_col == NULL ) {
-                  Py_DECREF(py_col);
-                  Py_DECREF(int4);
-                  return NULL;
-              }*/
-              break;
+          icol++  ;
+               if (PyLong_Check( PyLong_FromLong(icol) ) ){
+                    fl = PyFloat_FromDouble(d[i])     ;
+                    if (fl)  {
+                                PyList_SetItem(py_col, icol , fl  ) ;
+                    }
+                    else if (!fl){
+                    st=PyUnicode_FromString(  pnul ) ;
+                    PyList_SetItem ( py_col , icol , st ) ;
+                   // Py_DECREF(py_col);   Don't need to DECREF the reference of py_col, it may hold a 'NULL' value 
+                    Py_DECREF(st);
+                     }
+
+                    else {
+                    PyErr_SetString ( PyExc_IndexError, "The column index may not be a 4 bytes integer"  )       ;
+
+               }
+               }
+               break;
 
 
-	    } /* switch (pci->dtnum) */
+
+	    } /* switch pci   - type of column */
 	  }
-	} /* for (i=0; i<nd; i++) */
+	} 
 	
-       } /* if (!raw_binary)*/
+       } 
 
-    //next_please:
       ++nrows;
       ++irow ; 
+     if ( ihd == 1 ) {
+        if (irow == 0){          // Force the header to be in the index 0 of the returned list 
+          PyList_Append(py_row ,   py_hdr   ) ;
+	}
+      }
+     
      PyList_Append(py_row , py_col   ) ;
      Py_ssize_t nbcols = PyList_Size(py_col);
 
-     // reset list references !
+     // Reset list references !
      py_col=list_reset (&py_col, nbcols ) ;  
-
-     //if ( nrows > 10 )   break ; 
+    
+     if ( nrows > 4 )   break ; 
      if (maxlines > 0 && ++nrtot >= maxlines) break; /* while (...) */
 
     } 
@@ -249,7 +303,7 @@ static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
 
     FREEX(d);
     return    py_row   ;
-    
+    Py_DECREF ( py_row )     ;  // AVOID MEMORY GARBAGE !
     Py_Finalize() ;
   }   
   else {

@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <Python.h>
 #include "odbdump.h"
-//#include "pyspam.h"
+#include "pyspam.h"
 //#include "exceptions.h"
 
 
@@ -13,6 +13,26 @@ extern int ec_is_little_endian();
 extern double util_walltime_();
 
 // C wrapper
+
+static PyObject *odbCheck_method(PyObject *self, PyObject *args) {
+    char *database = NULL ;
+    Py_Initialize() ;
+    if(!PyArg_ParseTuple(args, "s", &database )) {
+        return NULL;
+    }
+
+//check odb path
+  if (check_path ( database  ) == 0 ) {
+	
+     return PyLong_FromLong(0) ;
+  }else {
+     PyErr_SetString (PyExc_FileNotFoundError, "The path to ODB not found ! "  )       ;
+     return PyLong_FromLong(-1) ;
+  }
+}
+
+
+
 static PyObject *odbConnect_method(PyObject *self, PyObject *args) {
     char *database = NULL ;
 
@@ -20,34 +40,26 @@ static PyObject *odbConnect_method(PyObject *self, PyObject *args) {
     if(!PyArg_ParseTuple(args, "s", &database )) {
         return NULL;
     }
-  int  ODB_OK           ; 
-  char *varvalue  = NULL;
-  char *poolmask  = NULL;
   char *sql_query = NULL; 
-  char *queryfile = NULL;
   int  maxlines   = -1  ;
   void *h         = NULL;
   int maxcols     = 0   ;
   int rc          = 0   ;
 
-
  if (maxlines == 0) return PyLong_FromLong(rc);
- ODB_OK = h ; 
  sql_query="select * from hdr, body" ;
- printf ("Opening the odb  :  %s \n",   database  ) ;
- printf (  "%s\n" , "Generating DCA files ..." ) ;
- //PyObject_Print( PyObjectString_FromString("Generating DCA files ... ") , stdout  , 0 );
- h     = odbdump_open(database, sql_query, queryfile, poolmask, varvalue, &maxcols);
+ //printf (  "%s\n" , "Generating DCA files ..." ) ;
+ h     = odbdump_open(database, sql_query, NULL ,NULL, NULL, &maxcols);
+
  if ( h ) {
+	 //printf ("The ODB %s successfully opened : \n",   database  ) ;
          return  PyLong_FromLong( h )  ;
  }else {
 	 PyErr_SetString(PyExc_ConnectionError  , "Internal connection error " ) ; 
-         //return  PyLong_FromLong( -1 ) ;
+         return  PyLong_FromLong( -1 ) ;
       }
 }
  
-
-
 
 
 static PyObject *createDca_method(PyObject *self, PyObject *args) {
@@ -116,6 +128,9 @@ static PyObject *odbClose_method(PyObject *self, PyObject *args) {
 
 
 static PyMethodDef module_methods[] = {
+    {"odbCheck"  ,  (PyCFunction)(void(*)(void))   odbCheck_method  ,
+    METH_VARARGS | METH_KEYWORDS,   "Simple check of the ODB path existence"},
+
     {"odbConnect",  (PyCFunction)(void(*)(void))   odbConnect_method ,
      METH_VARARGS | METH_KEYWORDS,   "Create odb connection   "},
     {"createDca" ,  (PyCFunction)(void(*)(void))    createDca_method  ,
