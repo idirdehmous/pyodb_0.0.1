@@ -13,29 +13,27 @@ extern double util_walltime_();
 
 
 // C wrapper 
-static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
+static PyObject *pyodbDump_method(PyObject* Py_UNUSED(self)  , PyObject *args) {
     Py_Initialize() ;
     char *database  = NULL;
     char *sql_query = NULL;
-    
-    int ihd   ;
-    int llv   ;
-    int lstat ;
+    char *fmt = "%.14g" ; 
+
+    int ihd =0 ;
+    int llv=0  ;
     PyObject *get_header ; 
     PyObject *lverb      ;  
-    PyObject *stat       ; 
 
     PyObject *st ,*dt , *ttm , *int4, *fl ; 
 
     
-    if(!PyArg_ParseTuple(args, "ssOOO", &database, &sql_query ,&get_header ,&lverb ,&stat )) {
+    if(!PyArg_ParseTuple(args, "ss|sOO", &database, &sql_query,&fmt, &get_header, &lverb )) {
         return NULL;
     }
 
     ihd   = PyObject_IsTrue(get_header);
     llv   = PyObject_IsTrue(lverb );
-    lstat = PyObject_IsTrue(stat  );
-    //printf ( "%d\n",  lstat   ) ; 
+
   char *poolmask  = NULL;
   char *varvalue  = NULL;
   char *queryfile = NULL;
@@ -98,7 +96,8 @@ static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
 	//CLEAN STRUCTURES 
 	ci = odbdump_destroy_colinfo(ci, nci);
 	ci = odbdump_create_colinfo(h, &nci);
-       if (  ihd ==  1 )      {	 
+    
+    if (  ihd ==  1 )      {	 
           PyObject *hdr  ; 
              for (i=0; i<nd; i++)   {
               colinfo_t *pci = &ci[i];
@@ -251,16 +250,17 @@ static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
                break;
 
 	  default:
-          icol++  ;
+              icol++  ;
+
                if (PyLong_Check( PyLong_FromLong(icol) ) ){
-                    fl = PyFloat_FromDouble(d[i])     ;
+                    fl= PyFloat_FromDouble(  format (  d[i], fmt  ) ) ;
                     if (fl)  {
                                 PyList_SetItem(py_col, icol , fl  ) ;
                     }
                     else if (!fl){
                     st=PyUnicode_FromString(  pnul ) ;
                     PyList_SetItem ( py_col , icol , st ) ;
-                   // Py_DECREF(py_col);   Don't need to DECREF the reference of py_col, it may hold a 'NULL' value 
+                   // Py_DECREF(py_col);   Don't need to DECREF the reference of py_col, it may hold a 'NULL' value
                     Py_DECREF(st);
                      }
 
@@ -269,6 +269,7 @@ static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
 
                }
                }
+
                break;
 
 
@@ -293,7 +294,7 @@ static PyObject *pyodbDump_method(PyObject *self, PyObject *args) {
      // Reset list references !
      py_col=list_reset (&py_col, nbcols ) ;  
     
-     if ( nrows > 4 )   break ; 
+     //if ( nrows > 5000 )   break ; 
      if (maxlines > 0 && ++nrtot >= maxlines) break; /* while (...) */
 
     } 
@@ -341,8 +342,3 @@ static struct PyModuleDef   odbmodule = {
 PyMODINIT_FUNC PyInit_pyodb(void) {
     return PyModule_Create(&odbmodule);
 };
-
-
-
-
-
